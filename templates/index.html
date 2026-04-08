@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Resume Builder</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+        body { background: linear-gradient(135deg, #1e293b 0%, #312e81 100%); min-height: 100vh; padding: 40px 20px; color: #333; }
+        
+        .container { max-width: 900px; margin: 0 auto; }
+        .card { background: white; border-radius: 16px; box-shadow: 0 20px 60px rgba(0,0,0,0.3); overflow: hidden; padding: 40px; margin-bottom: 20px; }
+        .header { text-align: center; color: white; margin-bottom: 30px; text-shadow: 2px 2px 4px rgba(0,0,0,0.3); }
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        @media (max-width: 768px) { .grid-2 { grid-template-columns: 1fr; } }
+
+        label { display: block; font-weight: 600; margin-bottom: 8px; font-size: 1.1em; color: #1e293b; }
+        .label-desc { font-size: 0.85em; color: #64748b; font-weight: 400; margin-bottom: 8px; }
+        textarea, input[type="text"], input[type="file"] { width: 100%; padding: 15px; border: 2px solid #e1e8ed; border-radius: 8px; font-size: 15px; margin-bottom: 25px; transition: border-color 0.3s; resize: vertical; }
+        textarea:focus, input[type="text"]:focus { outline: none; border-color: #667eea; }
+
+        .btn-primary { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 14px 30px; font-size: 16px; font-weight: 600; border: none; border-radius: 8px; cursor: pointer; transition: 0.3s; width: 100%; }
+        .btn-primary:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4); }
+        .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
+        .btn-secondary { background: #f1f3f5; color: #495057; padding: 14px 30px; font-size: 16px; font-weight: 600; border: none; border-radius: 8px; cursor: pointer; transition: 0.3s; width: 100%; }
+        .btn-secondary:hover { background: #e2e6ea; }
+
+        .status-badge { padding: 6px 12px; border-radius: 20px; font-weight: 600; font-size: 12px; text-transform: uppercase; float: right; }
+        .status-running { background: #fef3c7; color: #92400e; }
+        .status-completed { background: #d1fae5; color: #065f46; }
+        .status-error { background: #fee2e2; color: #991b1b; }
+        
+        .progress-bar { height: 8px; background: #e9ecef; border-radius: 4px; overflow: hidden; margin: 20px 0; }
+        .progress-fill { height: 100%; background: linear-gradient(90deg, #667eea 0%, #764ba2 100%); transition: width 0.3s; width: 0%; }
+        
+        .logs-box { background: #1e293b; color: #e2e8f0; font-family: monospace; font-size: 13px; padding: 20px; border-radius: 8px; max-height: 250px; overflow-y: auto; margin-bottom: 20px; }
+        
+        .download-btn { display: inline-block; padding: 14px 28px; background: #10b981; color: white; text-decoration: none; border-radius: 8px; font-weight: bold; margin-top: 15px; transition: 0.3s;}
+        .download-btn:hover { background: #059669; transform: translateY(-2px);}
+        
+        /* Modal */
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 1000; padding: 20px; overflow-y: auto; }
+        .modal.active { display: flex; align-items: center; justify-content: center; }
+        .modal-content { background: white; border-radius: 16px; max-width: 900px; width: 100%; max-height: 90vh; overflow-y: auto; padding: 40px; position: relative; }
+        .modal-close { position: absolute; top: 20px; right: 20px; background: #f1f5f9; border: none; width: 36px; height: 36px; border-radius: 50%; cursor: pointer; font-size: 20px; }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <div class="header">
+            <h1>📄 AI Resume Builder</h1>
+            <p style="margin-top: 10px; font-size: 1.1em; opacity: 0.9;">Upload your current resume and a job description to generate an ATS-optimized Word document.</p>
+        </div>
+
+        <div class="card">
+            <label>Target Role / Job Title</label>
+            <div class="label-desc">What specific job title are you applying for?</div>
+            <input type="text" id="resumeRole" placeholder="E.g., Senior Full Stack Developer">
+            
+            <label>Upload Context Files</label>
+            <div class="label-desc">Upload your current Resume or background info (Supported: .pdf, .docx, .txt)</div>
+            <input type="file" id="resumeFiles" multiple style="background: #f8f9fa;">
+            
+            <label>Job Description & Extra Context</label>
+            <div class="label-desc">Paste the job description or specifically note what you want the AI to emphasize.</div>
+            <textarea id="resumeDesc" rows="6" placeholder="Company X is looking for..."></textarea>
+            
+            <div class="grid-2">
+                <button id="resumeGenBtn" class="btn-primary" onclick="startResumeGeneration()">Analyze & Build Resume</button>
+                <button class="btn-secondary" onclick="clearForm()">Clear Form</button>
+            </div>
+
+            <div id="resumeStatusSection" style="display: none; margin-top: 30px; border-top: 1px solid #eee; padding-top: 30px;">
+                <h3 style="display: inline-block;">Phase: <span id="resumePhase" style="color:#667eea;">Uploading & Initializing...</span></h3>
+                <span id="resumeBadge" class="status-badge status-running">Running</span>
+                
+                <div class="progress-bar">
+                    <div id="resumeProgress" class="progress-fill"></div>
+                </div>
+                
+                <h4 style="margin-bottom:10px;">Activity Log:</h4>
+                <div id="resumeLogs" class="logs-box"></div>
+
+                <div id="resumeCompleteSection" style="display:none; text-align:center; padding: 30px; border: 2px dashed #667eea; border-radius: 8px; background: #f8f9fa;">
+                    <h2 style="margin-bottom: 15px; color: #1e293b;">✅ Resume Complete!</h2>
+                    <a id="resumeDownload" class="download-btn">📥 Download Optimized Resume (.docx)</a>
+                    <br><br>
+                    <button class="btn-secondary" style="width:auto;" onclick="openResumeModal()">📄 View Full Resume Text Here</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Resume Preview Modal -->
+    <div id="resumeModal" class="modal">
+        <div class="modal-content">
+            <button class="modal-close" onclick="document.getElementById('resumeModal').classList.remove('active')">✕</button>
+            <h2 style="margin-bottom: 25px;">Optimized Resume Draft</h2>
+            <div id="fullResumeText" style="white-space: pre-wrap; line-height: 1.8; color: #334155; font-size: 15px;"></div>
+        </div>
+    </div>
+
+    <script>
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function clearForm() {
+            document.getElementById('resumeRole').value = '';
+            document.getElementById('resumeDesc').value = '';
+            document.getElementById('resumeFiles').value = '';
+            document.getElementById('resumeStatusSection').style.display = 'none';
+        }
+
+        let resumeJobId = null;
+        let resumeInterval = null;
+
+        async function startResumeGeneration() {
+            const role = document.getElementById('resumeRole').value.trim();
+            const desc = document.getElementById('resumeDesc').value.trim();
+            const fileInput = document.getElementById('resumeFiles');
+            
+            if(!role && !desc && fileInput.files.length === 0) {
+                return alert("Please upload files or provide a target role/job description to generate a resume.");
+            }
+            
+            document.getElementById('resumeGenBtn').disabled = true;
+            document.getElementById('resumeStatusSection').style.display = 'block';
+            document.getElementById('resumeLogs').innerHTML = '';
+            document.getElementById('resumeCompleteSection').style.display = 'none';
+            document.getElementById('resumeProgress').style.width = '5%';
+
+            // Create FormData for files + text
+            const formData = new FormData();
+            formData.append('target_role', role);
+            formData.append('job_description', desc);
+            for (const file of fileInput.files) {
+                formData.append('files', file);
+            }
+
+            try {
+                const res = await fetch('/api/resume/generate', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await res.json();
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+                
+                resumeJobId = data.job_id;
+                resumeInterval = setInterval(pollResumeStatus, 1000);
+            } catch(e) {
+                alert("Error: " + e.message);
+                document.getElementById('resumeGenBtn').disabled = false;
+                document.getElementById('resumeStatusSection').style.display = 'none';
+            }
+        }
+
+        async function pollResumeStatus() {
+            if (!resumeJobId) return;
+
+            try {
+                const res = await fetch(`/api/resume/status/${resumeJobId}`);
+                const data = await res.json();
+
+                if (data.status === 'not_found') return;
+
+                // Update UI Badges & Text
+                document.getElementById('resumeBadge').className = `status-badge status-${data.status}`;
+                document.getElementById('resumeBadge').innerText = data.status.toUpperCase();
+                document.getElementById('resumePhase').innerText = data.current_phase || "Initializing...";
+                
+                // Update Logs
+                const logsBox = document.getElementById('resumeLogs');
+                logsBox.innerHTML = data.logs.map(l => `<div>> ${escapeHtml(l)}</div>`).join('');
+                logsBox.scrollTop = logsBox.scrollHeight;
+                
+                // Calculate and animate Progress
+                let prog = 10;
+                if(data.current_phase.includes("Analyzing")) prog = 30;
+                if(data.current_phase.includes("Drafting")) prog = 40 + (data.current_iteration * 15);
+                if(data.current_phase.includes("Reviewing")) prog = 85;
+                if(data.current_phase.includes("Formatting")) prog = 95;
+                if(data.current_phase.includes("Complete")) prog = 100;
+                document.getElementById('resumeProgress').style.width = `${Math.min(prog, 100)}%`;
+
+                // Handle Completion
+                if(data.has_file && data.status === 'completed') {
+                    document.getElementById('resumeCompleteSection').style.display = 'block';
+                    document.getElementById('resumeDownload').href = `/api/resume/download/${resumeJobId}`;
+                }
+
+                // Stop polling if done or errored
+                if(data.status === 'completed' || data.status === 'error') {
+                    clearInterval(resumeInterval);
+                    document.getElementById('resumeGenBtn').disabled = false;
+                }
+            } catch(e) { 
+                console.error("Resume poll error:", e); 
+            }
+        }
+
+        async function openResumeModal() {
+            try {
+                const res = await fetch(`/api/resume/text/${resumeJobId}`);
+                const data = await res.json();
+                document.getElementById('fullResumeText').innerText = data.resume;
+                document.getElementById('resumeModal').classList.add('active');
+            } catch (e) { 
+                alert("Could not load resume text."); 
+            }
+        }
+    </script>
+</body>
+</html>
+```

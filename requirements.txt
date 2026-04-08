@@ -1,0 +1,6 @@
+flask
+flask-cors
+werkzeug
+python-docx
+PyPDF2
+google-genai
